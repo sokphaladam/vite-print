@@ -1,14 +1,23 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import "./App.css";
+import LoginForm from "./components/gui/login-form";
 
 function App() {
-  const [nodeVersion, setNodeVersion] = useState<string | undefined>(undefined);
+  const token = useMemo(() => {
+    let t = null;
+    backend.onMain("token", (msg) => {
+      console.log("Token received:", msg);
+      t = msg;
+    });
+    return t;
+  }, []);
+  // const [nodeVersion, setNodeVersion] = useState<string | undefined>(undefined);
 
-  const updateNodeVersion = useCallback(
-    async () =>
-      setNodeVersion(await backend.nodeVersion("Hello from App.tsx!")),
-    []
-  );
+  // const updateNodeVersion = useCallback(
+  //   async () =>
+  //     setNodeVersion(await backend.nodeVersion("Hello from App.tsx!")),
+  //   []
+  // );
 
   useEffect(() => {
     backend.onMain("ws-message", (msg) => {
@@ -20,15 +29,12 @@ function App() {
     });
   }, []);
 
+  console.log(token);
+
   return (
     <div className="App">
-      <pre>
-        {/* {data.map((item, index) => (
-          <div key={index}>{JSON.stringify(item, null, 2)}</div>
-        ))} */}
-      </pre>
       {/* snip... */}
-      <button onClick={updateNodeVersion}>Node version is {nodeVersion}</button>
+      {token ? <></> : <LoginForm />}
       {/* snip... */}
     </div>
   );

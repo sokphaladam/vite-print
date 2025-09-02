@@ -7,6 +7,9 @@ export const backend = {
   onMain: (channel: string, callback: (data: any) => void) => {
     ipcRenderer.on(channel, (_, data) => callback(data));
   },
+  login: async (username: string, password: string): Promise<string> => {
+    return await ipcRenderer.invoke("login", username, password);
+  },
 };
 
 contextBridge.exposeInMainWorld("backend", backend);

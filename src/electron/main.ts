@@ -40,6 +40,8 @@ function createWindow() {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   createWindow();
+  const TOKEN = window.localStorage.getItem("token");
+  mainWindow?.webContents.send("token", TOKEN);
 
   const wss = new WebSocketServer({ port: 8080 });
 
