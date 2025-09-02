@@ -8,6 +8,7 @@ export default defineConfig(async () => ({
     react(), // dynamic import avoids externalize-deps issue
     (await import("@tailwindcss/vite")).default(),
   ],
+  base: "./",
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src/frontend"),

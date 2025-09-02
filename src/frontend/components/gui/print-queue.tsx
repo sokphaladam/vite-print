@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { requestDatabase } from "@/server/request-api";
+import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
@@ -21,7 +22,7 @@ export function PrintQueue(props: Props) {
 
   useEffect(() => {
     if (props.token && !isHandlerRegistered.current) {
-      const handler = async (data: unknown) => {
+      const handler = async () => {
         // Prevent duplicate calls
         if (isProcessing.current) {
           console.log("Already processing, skipping...");
@@ -29,13 +30,76 @@ export function PrintQueue(props: Props) {
         }
 
         isProcessing.current = true;
-        console.log(data);
 
         try {
           const res = (await requestDatabase("/api/print-queue", "GET")) as {
             result: table_print_queue[];
           };
-          backend.printJob([], {});
+          res.result.forEach((item) => {
+            const printInfo: PosPrintData[] = [
+              {
+                type: "text",
+                value: `តុលេខ= ${item.content.tableNumber}`,
+                style: {
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              },
+              {
+                type: "text",
+                value: `កាលបរិច្ឆេទ= ${item.content.createAt}`,
+                style: {
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              },
+              {
+                type: "text",
+                value: `ទំនិញ= ${item.content.product.name} x${item.content.product.quantity}`,
+                style: {
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              },
+            ];
+            if (item.content.product.modifiers) {
+              printInfo.push({
+                type: "text",
+                value: `បន្ថែម ${item.content.product.modifiers.map((m: { name: string }) => m.name).join(",")}`,
+                style: {
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              });
+            }
+            printInfo.push({
+              type: "text",
+              value: `បញ្ជាទិញដោយ= ${item.content.createdBy}`,
+              style: {
+                fontSize: "18px",
+                fontWeight: "bold",
+                fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+              },
+            });
+            const printOption: PosPrintOptions = {
+              preview: false,
+              margin: "0 0 0 0",
+              copies: 1,
+              printerName: item.printer_info.printer_name,
+              timeOutPerLine: 400,
+              silent: true,
+              pageSize: "80mm",
+              boolean: true,
+            };
+            backend.printJob(printInfo, printOption).then((response) => {
+              console.log("Print job response:", response);
+            });
+          });
+          // backend.printJob([], {});
           setPrinters(res.result);
         } catch (error) {
           console.error("Error fetching print queue:", error);

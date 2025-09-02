@@ -8,5 +8,6 @@
     "types": ["node"],
     "moduleResolution": "node"
   },
-  "include": ["src/electron"]
+  "include": ["src/main.ts", "src/preload.ts", "src/electron"],
+  "exclude": ["node_modules", "dist", "src/frontend"]
 }

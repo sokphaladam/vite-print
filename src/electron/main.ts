@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, nativeImage } from "electron";
 import { join } from "path";
 import { WebSocketServer } from "ws";
 import cron from "node-cron";
@@ -13,13 +13,21 @@ const isPreview = process.env.PREVIEW != undefined;
 
 let mainWindow: BrowserWindow | null = null;
 
+app.setLoginItemSettings({
+  openAtLogin: true,
+  openAsHidden: true,
+});
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
+    show: true,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       webSecurity: false,
+      nodeIntegration: false,
+      contextIsolation: true,
     },
   });
 
@@ -31,9 +39,9 @@ function createWindow() {
     mainWindow.webContents.openDevTools();
   } else if (isPreview) {
     mainWindow.webContents.openDevTools();
-    mainWindow.loadFile("index.html");
+    mainWindow.loadFile(join(__dirname, "../dist/index.html"));
   } else {
-    mainWindow.loadFile("index.html");
+    mainWindow.loadFile(join(__dirname, "../dist/index.html"));
   }
 }
 
