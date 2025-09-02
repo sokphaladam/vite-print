@@ -1,5 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
-import { requestDatabase } from "src/server/request-api";
+import { createPrintJob } from "./render";
+import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
 
 ipcMain.handle(
   "node-version",
@@ -22,19 +23,16 @@ ipcMain.handle(
 );
 
 ipcMain.handle(
-  "login",
-  async (event: IpcMainInvokeEvent, username: string, password: string) => {
-    console.log(`Login attempt: ${username}, ${password}`);
+  "create-print-job",
+  async (
+    event: IpcMainInvokeEvent,
+    data: PosPrintData[],
+    option: PosPrintOptions
+  ) => {
+    console.log(event);
+    console.log(data);
+    console.log(option);
 
-    const response = await requestDatabase(
-      "http://localhost:3000/api/auth/login",
-      "POST",
-      {
-        username,
-        password,
-      }
-    );
-
-    return response;
+    return await createPrintJob(data, option);
   }
 );

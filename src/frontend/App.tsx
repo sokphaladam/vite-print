@@ -1,40 +1,18 @@
-import { useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 import LoginForm from "./components/gui/login-form";
+import { PrintQueue } from "./components/gui/print-queue";
 
 function App() {
-  const token = useMemo(() => {
-    let t = null;
-    backend.onMain("token", (msg) => {
-      console.log("Token received:", msg);
-      t = msg;
-    });
-    return t;
+  const localToken = useMemo(() => {
+    return localStorage.getItem("token");
   }, []);
-  // const [nodeVersion, setNodeVersion] = useState<string | undefined>(undefined);
-
-  // const updateNodeVersion = useCallback(
-  //   async () =>
-  //     setNodeVersion(await backend.nodeVersion("Hello from App.tsx!")),
-  //   []
-  // );
-
-  useEffect(() => {
-    backend.onMain("ws-message", (msg) => {
-      console.log("WebSocket message received:", msg);
-    });
-
-    backend.onMain("print-job", (msg) => {
-      console.log("Print job message received:", msg);
-    });
-  }, []);
-
-  console.log(token);
+  const [token, setToken] = useState<string | null>(localToken);
 
   return (
-    <div className="App">
+    <div className="w-full flex flex-1 p-4 overflow-hidden relative">
       {/* snip... */}
-      {token ? <></> : <LoginForm />}
+      {token ? <PrintQueue token={token} /> : <LoginForm onLogin={setToken} />}
       {/* snip... */}
     </div>
   );

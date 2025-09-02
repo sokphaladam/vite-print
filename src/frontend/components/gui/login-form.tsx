@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { requestDatabase } from "../../server/request-api";
 
-const LoginForm: React.FC = () => {
+const LoginForm = (props: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -17,8 +18,20 @@ const LoginForm: React.FC = () => {
     }
     setError("");
     // TODO: Add login logic here
-    backend.login(username, password);
-    alert(`Logging in as ${username}`);
+    requestDatabase("/api/auth/login", "POST", {
+      username,
+      password,
+    })
+      .then((response) => {
+        const typedResponse = response as { token: string };
+        localStorage.setItem("token", typedResponse.token);
+        props.onLogin(typedResponse.token);
+        alert(`Logging in as ${username}`);
+      })
+      .catch((error) => {
+        console.error(error);
+        setError("Login failed. Please try again.");
+      });
   };
 
   return (

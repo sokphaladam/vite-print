@@ -1,20 +1,22 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-irregular-whitespace */
 import type { BrowserWindow } from "electron";
-import { PosPrinter } from "electron-pos-printer";
-
-interface PropData {
-  table: string;
-  delivery?: string;
-  date: string;
-  title: string;
-  addon?: string;
-  remark?: string;
-  by: string;
-}
+import {
+  PosPrinter,
+  type PosPrintData,
+  type PosPrintOptions,
+} from "electron-pos-printer";
 
 export function printJob(
-  data: any,
+  data: {
+    table: string;
+    delivery: string;
+    date: string;
+    title: string;
+    addon: string;
+    remark: string;
+    by: string;
+  },
   printerName: string,
   mainWindow: BrowserWindow
 ) {
@@ -159,4 +161,11 @@ export function printJob(
           "Failed to print -------------------------------------------------",
       });
     });
+}
+
+export async function createPrintJob(
+  data: PosPrintData[],
+  option: PosPrintOptions
+) {
+  return await PosPrinter.print(data, option);
 }

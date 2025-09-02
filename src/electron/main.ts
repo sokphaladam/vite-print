@@ -1,6 +1,7 @@
 import { app, BrowserWindow } from "electron";
 import { join } from "path";
 import { WebSocketServer } from "ws";
+import cron from "node-cron";
 
 // 1. this import won't work yet, but we will fix that next
 import "./api";
@@ -18,6 +19,7 @@ function createWindow() {
     height: 600,
     webPreferences: {
       preload: join(__dirname, "preload.js"),
+      webSecurity: false,
     },
   });
 
@@ -35,14 +37,20 @@ function createWindow() {
   }
 }
 
+// Run cron job every minute
+cron.schedule("*/15 * * * * *", () => {
+  console.log("⏰ Running every 15 seconds:", new Date().toISOString());
+  // Example: send message to renderer
+  if (mainWindow) {
+    mainWindow.webContents.send("cron-event", { time: new Date() });
+  }
+});
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   createWindow();
-  const TOKEN = window.localStorage.getItem("token");
-  mainWindow?.webContents.send("token", TOKEN);
-
   const wss = new WebSocketServer({ port: 8080 });
 
   console.log("WebSocket server running on ws://localhost:8080");
