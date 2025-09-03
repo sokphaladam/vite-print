@@ -35,12 +35,11 @@ export function PrintQueue(props: Props) {
           const res = (await requestDatabase("/api/print-queue", "GET")) as {
             result: table_print_queue[];
           };
-          const data: table_print_queue[] = [];
           res.result.forEach((item) => {
             const printInfo: PosPrintData[] = [
               {
                 type: "text",
-                value: `តុលេខ= ${item.content.tableNumber}`,
+                value: `តុលេខ: ${item.content.tableNumber}`,
                 style: {
                   fontSize: "20px",
                   fontWeight: "bold",
@@ -49,7 +48,7 @@ export function PrintQueue(props: Props) {
               },
               {
                 type: "text",
-                value: `កាលបរិច្ឆេទ= ${item.content.createAt}`,
+                value: `កាលបរិច្ឆេទ: ${item.content.createAt}`,
                 style: {
                   fontSize: "18px",
                   fontWeight: "bold",
@@ -58,7 +57,23 @@ export function PrintQueue(props: Props) {
               },
               {
                 type: "text",
-                value: `ទំនិញ= ${item.content.product.name} x${item.content.product.quantity}`,
+                value: `បញ្ជាទិញដោយ: ${item.content.createdBy}`,
+                style: {
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              },
+              {
+                type: "text",
+                value: "--------------------------------",
+                style: {
+                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                },
+              },
+              {
+                type: "text",
+                value: `ទំនិញ:   ${item.content.product.name} x${item.content.product.quantity}`,
                 style: {
                   fontSize: "18px",
                   fontWeight: "bold",
@@ -67,54 +82,56 @@ export function PrintQueue(props: Props) {
               },
             ];
             if (item.content.product.modifiers) {
-              printInfo.push({
-                type: "text",
-                value: `បន្ថែម ${item.content.product.modifiers.map((m: { name: string }) => m.name).join(",")}`,
-                style: {
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
-                },
-              });
+              for (const m of item.content.product.modifiers) {
+                printInfo.push({
+                  type: "text",
+                  value: `   + ${m.name}`,
+                  style: {
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
+                  },
+                });
+              }
             }
             printInfo.push({
               type: "text",
-              value: `បញ្ជាទិញដោយ= ${item.content.createdBy}`,
+              value: "--------------------------------",
               style: {
-                fontSize: "18px",
-                fontWeight: "bold",
                 fontFamily: `Hanuman, 'Courier New', Courier, monospace`,
               },
+            });
+            printInfo.push({
+              type: "barCode",
+              value: `${item.content.orderItemId}`,
+              height: "60",
+              width: "2",
+              style: { margin: "0 0", textAlign: "center" },
+              fontsize: 12,
             });
             const printOption: PosPrintOptions = {
               preview: false,
               margin: "0 0 0 0",
               copies: 1,
               printerName: item.printer_info.printer_name,
-              timeOutPerLine: 400,
+              timeOutPerLine: 500,
               silent: true,
               pageSize: "80mm",
               boolean: true,
             };
             backend
               .printJob(printInfo, printOption)
-              .then((response) => {
+              .then(async (response) => {
                 console.log("Print job response:", response);
-                data.push(item);
+                await requestDatabase("/api/print-queue/delete", "DELETE", {
+                  ids: [item.id],
+                });
               })
               .catch((err) => {
                 console.error("Error printing job:", err);
               });
           });
-          // backend.printJob([], {});
           setPrinters(res.result);
-          if (data.length > 0) {
-            await requestDatabase(
-              "/api/print-queue/delete",
-              "DELETE",
-              data.map((d) => d.id)
-            );
-          }
         } catch (error) {
           console.error("Error fetching print queue:", error);
         } finally {

@@ -1,4 +1,4 @@
-const endpoint = "https://0cmdr7x3-3000.asse.devtunnels.ms";
+const endpoint = "https://fj40skhz-3000.asse.devtunnels.ms";
 
 export async function requestDatabase<ResponseType = unknown>(
   url: string,

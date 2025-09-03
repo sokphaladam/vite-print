@@ -24,15 +24,7 @@ ipcMain.handle(
 
 ipcMain.handle(
   "create-print-job",
-  async (
-    event: IpcMainInvokeEvent,
-    data: PosPrintData[],
-    option: PosPrintOptions
-  ) => {
-    console.log(event);
-    console.log(data);
-    console.log(option);
-
-    return await createPrintJob(data, option);
+  async (_, data: PosPrintData[], option: PosPrintOptions) => {
+    return createPrintJob(data, option);
   }
 );
