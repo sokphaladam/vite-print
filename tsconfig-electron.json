@@ -8,6 +8,6 @@
     "types": ["node"],
     "moduleResolution": "node"
   },
-  "include": ["src/main.ts", "src/preload.ts", "src/electron"],
+  "include": ["src/main.ts", "src/preload.ts", "src/electron", "src/assets/react.svg"],
   "exclude": ["node_modules", "dist", "src/frontend"]
 }

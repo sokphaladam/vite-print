@@ -1,4 +1,5 @@
-import { app, BrowserWindow, nativeImage } from "electron";
+/* eslint-disable @typescript-eslint/no-unused-expressions */
+import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { join } from "path";
 import { WebSocketServer } from "ws";
 import cron from "node-cron";
@@ -12,17 +13,70 @@ const isDev = process.env.DEV != undefined;
 const isPreview = process.env.PREVIEW != undefined;
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 app.setLoginItemSettings({
   openAtLogin: true,
   openAsHidden: true,
 });
 
+function getIconExtension() {
+  switch (process.platform) {
+    case "win32":
+      return "ico";
+    case "darwin":
+      return "icns";
+    default:
+      return "png";
+  }
+}
+
+function getIconPath() {
+  const iconExt = getIconExtension();
+  const iconFile = `printer-maintenance.${iconExt}`;
+  return isDev
+    ? join(__dirname, "../assets", iconFile)
+    : join(process.resourcesPath, "assets", iconFile);
+}
+
+function createTray() {
+  const trayIconPath = getIconPath();
+  tray = new Tray(nativeImage.createFromPath(trayIconPath));
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: "Show App",
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+        }
+      },
+    },
+    {
+      label: "Quit",
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+  tray.setToolTip("Printer Maintenance");
+  tray.setContextMenu(contextMenu);
+
+  tray.on("click", () => {
+    if (mainWindow) {
+      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+    }
+  });
+}
+
 function createWindow() {
+  const iconPath = getIconPath();
   mainWindow = new BrowserWindow({
     width: 800,
     height: 600,
     show: true,
+    darkTheme: true,
+    title: "Printer Maintenance",
+    icon: nativeImage.createFromPath(iconPath),
     webPreferences: {
       preload: join(__dirname, "preload.js"),
       webSecurity: false,
@@ -59,6 +113,7 @@ cron.schedule("*/15 * * * * *", () => {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   createWindow();
+  createTray();
   const wss = new WebSocketServer({ port: 8080 });
 
   console.log("WebSocket server running on ws://localhost:8080");

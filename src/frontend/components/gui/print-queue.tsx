@@ -35,6 +35,7 @@ export function PrintQueue(props: Props) {
           const res = (await requestDatabase("/api/print-queue", "GET")) as {
             result: table_print_queue[];
           };
+          const data: table_print_queue[] = [];
           res.result.forEach((item) => {
             const printInfo: PosPrintData[] = [
               {
@@ -95,12 +96,25 @@ export function PrintQueue(props: Props) {
               pageSize: "80mm",
               boolean: true,
             };
-            backend.printJob(printInfo, printOption).then((response) => {
-              console.log("Print job response:", response);
-            });
+            backend
+              .printJob(printInfo, printOption)
+              .then((response) => {
+                console.log("Print job response:", response);
+                data.push(item);
+              })
+              .catch((err) => {
+                console.error("Error printing job:", err);
+              });
           });
           // backend.printJob([], {});
           setPrinters(res.result);
+          if (data.length > 0) {
+            await requestDatabase(
+              "/api/print-queue/delete",
+              "DELETE",
+              data.map((d) => d.id)
+            );
+          }
         } catch (error) {
           console.error("Error fetching print queue:", error);
         } finally {

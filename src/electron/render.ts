@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-irregular-whitespace */
-import type { BrowserWindow } from "electron";
+import { BrowserWindow, Notification } from "electron";
 import {
   PosPrinter,
   type PosPrintData,
@@ -167,5 +167,25 @@ export async function createPrintJob(
   data: PosPrintData[],
   option: PosPrintOptions
 ) {
-  return await PosPrinter.print(data, option);
+  try {
+    const print = await PosPrinter.print(data, option);
+    if (print) {
+      new Notification({
+        title: "Print job",
+        body: "Your print job has been created successfully.",
+      }).show();
+    } else {
+      new Notification({
+        title: "Print job",
+        body: "Failed to create print job.",
+      }).show();
+    }
+    return print;
+  } catch (error) {
+    new Notification({
+      title: "Print job",
+      body: "Failed to create print job.",
+    }).show();
+    return error;
+  }
 }
