@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { requestDatabase } from "@/server/request-api";
 import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Printer,
   Clock,
@@ -14,6 +14,8 @@ import {
   CheckCircle,
   RefreshCw,
   Settings,
+  Pause,
+  Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -152,66 +154,145 @@ const getContentSummary = (content: PosPrintData[]) => {
 
 export function PrintQueue(props: Props) {
   const [printers, setPrinters] = useState<table_print_queue[]>([]);
+  const [isQueueRunning, setIsQueueRunning] = useState(true);
+  const [processingJobId, setProcessingJobId] = useState<number | null>(null);
   const isHandlerRegistered = useRef(false);
   const isProcessing = useRef(false);
+  const queueIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Function to process print queue
+  const processQueue = useCallback(async () => {
+    if (isProcessing.current || !isQueueRunning) {
+      return;
+    }
+
+    isProcessing.current = true;
+
+    try {
+      const res = (await requestDatabase("/api/print-queue", "GET")) as {
+        result: table_print_queue[];
+      };
+
+      setPrinters(res.result);
+
+      // Process only the first (oldest) print job to avoid duplicates
+      if (res.result.length > 0) {
+        const item = res.result[0]; // Get the first item only
+
+        if (!isQueueRunning) {
+          isProcessing.current = false;
+          return;
+        }
+
+        setProcessingJobId(item.id || null);
+
+        const printInfo: PosPrintData[] = item.content;
+        const printOption: PosPrintOptions = {
+          preview: false,
+          margin: "0 0 0 0",
+          copies: 1,
+          printerName: item.printer_info.printer_name,
+          timeOutPerLine: 400,
+          silent: true,
+          pageSize: "80mm",
+          boolean: true,
+        };
+
+        try {
+          console.log(
+            `Processing print job #${item.id} for printer: ${item.printer_info.printer_name}`
+          );
+          const response = await backend.printJob(printInfo, printOption);
+          console.log("Print job response:", response);
+
+          // Remove successful job from queue
+          await requestDatabase("/api/print-queue/delete", "DELETE", {
+            ids: [item.id],
+          });
+
+          // Update local state
+          setPrinters((prev) => prev.filter((p) => p.id !== item.id));
+
+          console.log(`Successfully completed print job #${item.id}`);
+        } catch (err) {
+          console.error(`Error printing job #${item.id}:`, err);
+          // Could add retry logic here or mark job as failed
+        }
+
+        setProcessingJobId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching print queue:", error);
+    } finally {
+      isProcessing.current = false;
+      setProcessingJobId(null);
+    }
+  }, [isQueueRunning]);
+
+  // Start queue loop
+  const startQueueLoop = useCallback(() => {
+    if (queueIntervalRef.current) {
+      clearInterval(queueIntervalRef.current);
+    }
+
+    queueIntervalRef.current = setInterval(processQueue, 3000); // Check every 3 seconds
+    processQueue(); // Run immediately
+  }, [processQueue]);
+
+  // Stop queue loop
+  const stopQueueLoop = useCallback(() => {
+    if (queueIntervalRef.current) {
+      clearInterval(queueIntervalRef.current);
+      queueIntervalRef.current = null;
+    }
+  }, []);
+
+  // Toggle queue running state
+  const toggleQueue = () => {
+    setIsQueueRunning(!isQueueRunning);
+  };
 
   useEffect(() => {
     if (props.token && !isHandlerRegistered.current) {
       const handler = async () => {
-        // Prevent duplicate calls
-        if (isProcessing.current) {
-          console.log("Already processing, skipping...");
-          return;
-        }
-
-        isProcessing.current = true;
-
-        try {
-          const res = (await requestDatabase("/api/print-queue", "GET")) as {
-            result: table_print_queue[];
-          };
-          res.result.forEach((item) => {
-            const printInfo: PosPrintData[] = item.content;
-            const printOption: PosPrintOptions = {
-              preview: false,
-              margin: "0 0 0 0",
-              copies: 1,
-              printerName: item.printer_info.printer_name,
-              timeOutPerLine: 500,
-              silent: true,
-              pageSize: "80mm",
-              boolean: true,
-            };
-            backend
-              .printJob(printInfo, printOption)
-              .then(async (response) => {
-                console.log("Print job response:", response);
-                await requestDatabase("/api/print-queue/delete", "DELETE", {
-                  ids: [item.id],
-                });
-              })
-              .catch((err) => {
-                console.error("Error printing job:", err);
-              });
-          });
-          setPrinters(res.result);
-        } catch (error) {
-          console.error("Error fetching print queue:", error);
-        } finally {
-          isProcessing.current = false;
-        }
+        await processQueue();
       };
 
       backend.onCronEvent(handler);
       isHandlerRegistered.current = true;
 
+      // Start the queue loop
+      if (isQueueRunning) {
+        startQueueLoop();
+      }
+
       // Cleanup function
       return () => {
         isHandlerRegistered.current = false;
         isProcessing.current = false;
+        stopQueueLoop();
       };
     }
-  }, [props]);
+  }, [
+    props.token,
+    isQueueRunning,
+    processQueue,
+    startQueueLoop,
+    stopQueueLoop,
+  ]);
+
+  // Effect to handle queue running state changes
+  useEffect(() => {
+    if (isQueueRunning) {
+      startQueueLoop();
+    } else {
+      stopQueueLoop();
+    }
+
+    return () => {
+      stopQueueLoop();
+    };
+  }, [isQueueRunning, startQueueLoop, stopQueueLoop]);
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-white to-blue-50 overflow-hidden">
@@ -232,12 +313,57 @@ export function PrintQueue(props: Props) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Queue Status Indicator */}
+            <div
+              className={`text-sm px-4 py-2 rounded-full border ${
+                isQueueRunning
+                  ? "text-green-700 bg-green-100 border-green-200"
+                  : "text-orange-700 bg-orange-100 border-orange-200"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {isQueueRunning ? (
+                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                ) : (
+                  <div className="h-2 w-2 bg-orange-500 rounded-full" />
+                )}
+                <span className="font-medium">
+                  {isQueueRunning ? "Running" : "Paused"}
+                </span>
+              </div>
+            </div>
+
             <div className="text-sm text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full border border-emerald-200">
               <div className="flex items-center gap-2">
                 <Hash className="h-4 w-4" />
                 <span className="font-medium">{printers.length} items</span>
               </div>
             </div>
+
+            {/* Queue Control Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleQueue}
+              className={`border-2 ${
+                isQueueRunning
+                  ? "border-orange-200 text-orange-700 hover:bg-orange-50"
+                  : "border-green-200 text-green-700 hover:bg-green-50"
+              }`}
+            >
+              {isQueueRunning ? (
+                <>
+                  <Pause className="h-4 w-4 mr-2" />
+                  Pause Queue
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Start Queue
+                </>
+              )}
+            </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -269,23 +395,42 @@ export function PrintQueue(props: Props) {
               const jobStatus = getPrintJobStatus(printer.created_at);
               const StatusIcon = jobStatus.icon;
               const contentSummary = getContentSummary(printer.content);
+              const isCurrentlyProcessing = processingJobId === printer.id;
 
               return (
                 <div
                   key={printer.id || index}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
+                  className={`bg-white rounded-xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+                    isCurrentlyProcessing
+                      ? "border-blue-300 ring-2 ring-blue-100"
+                      : "border-gray-200"
+                  }`}
                 >
                   {/* Job Header */}
-                  <div className="p-4 border-b border-gray-100">
+                  <div
+                    className={`p-4 border-b ${
+                      isCurrentlyProcessing
+                        ? "border-blue-100 bg-blue-50"
+                        : "border-gray-100"
+                    }`}
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-3">
                           <div
-                            className={`p-2 rounded-lg ${jobStatus.bgColor}`}
+                            className={`p-2 rounded-lg ${
+                              isCurrentlyProcessing
+                                ? "bg-blue-100"
+                                : jobStatus.bgColor
+                            }`}
                           >
-                            <StatusIcon
-                              className={`h-5 w-5 ${jobStatus.color}`}
-                            />
+                            {isCurrentlyProcessing ? (
+                              <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />
+                            ) : (
+                              <StatusIcon
+                                className={`h-5 w-5 ${jobStatus.color}`}
+                              />
+                            )}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -297,16 +442,22 @@ export function PrintQueue(props: Props) {
                               </span>
                             </div>
                             <div
-                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${jobStatus.bgColor} ${jobStatus.color}`}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                isCurrentlyProcessing
+                                  ? "bg-blue-100 text-blue-700"
+                                  : `${jobStatus.bgColor} ${jobStatus.color}`
+                              }`}
                             >
                               <span className="capitalize">
-                                {jobStatus.status}
+                                {isCurrentlyProcessing
+                                  ? "Printing..."
+                                  : jobStatus.status}
                               </span>
                             </div>
                           </div>
                         </div>
 
-                        {/* Job Details */}
+                        {/* ...existing code for job details... */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                           <div className="flex items-center gap-2 text-gray-600">
                             <User className="h-4 w-4" />
